@@ -45,7 +45,7 @@
     <!-- 10대 상황별 카테고리 탭 -->
     <div class="bg-indigo-900/80 border-t border-indigo-800/80">
       <div class="max-w-3xl mx-auto px-4 py-2 flex gap-1.5 overflow-x-auto no-scrollbar" id="categoryTabs">
-        <button data-cat="전체" class="cat-btn active shrink-0 px-3 py-1.5 rounded-full text-xs font-extrabold bg-amber-400 text-indigo-950">전체 (52)</button>
+        <button data-cat="전체" class="cat-btn active shrink-0 px-3 py-1.5 rounded-full text-xs font-extrabold bg-amber-400 text-indigo-950" id="allCatBtn">전체 (52)</button>
         <button data-cat="덧셈·뺄셈·암산" class="cat-btn shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-950/60 text-indigo-100 hover:bg-indigo-800">➕ 덧셈·뺄셈·암산</button>
         <button data-cat="구구단·곱셈·19단" class="cat-btn shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-950/60 text-indigo-100 hover:bg-indigo-800">✖️ 구구단·곱셈·19단</button>
         <button data-cat="분수·소수·큰수" class="cat-btn shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-950/60 text-indigo-100 hover:bg-indigo-800">🍰 분수·소수·큰수</button>
@@ -91,7 +91,7 @@
 
   <!-- 상태 표시 바 -->
   <div class="max-w-3xl mx-auto px-4 py-2 flex justify-between items-center text-xs text-slate-500">
-    <span id="resultCount" class="font-bold text-slate-700">총 52개의 영상</span>
+    <span id="resultCount" class="font-bold text-slate-700">영상 불러오는 중…</span>
     <span>💬 <b>'상담멘트+링크 복사'</b>로 카톡 상담에 바로 활용하세요!</span>
   </div>
 
@@ -117,7 +117,12 @@
   </div>
 
   <script>
-    const videos = [
+    // ── 영상 목록은 구글 시트에서 불러옵니다 (시트: 송파두뇌로 쇼츠 백과사전 관리 › 영상 탭)
+    // 시트를 못 읽으면 아래 기본 목록(FALLBACK_VIDEOS)을 그대로 보여줍니다.
+    const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSpqdJE1B2mEJPoqgWoQJMyNc3adV1CbtoXlWjDsIDxsUY8HuaC_pduLDgAPvOE1vvVY3NeyiUS-DU2/pub?gid=0&single=true&output=csv";
+    const NEW_DAYS = 14; // 올린 지 14일 이내 영상에 NEW 표시
+
+    const FALLBACK_VIDEOS = [
       // 1. 덧셈·뺄셈·암산
       { id: "pN2zJpz45b8", cat: "덧셈·뺄셈·암산", key: "세븐합 7가지 연산루틴", title: "하루 30문제씩 풀어도 실수가 그대로라면? '세븐합' 7가지 연산 루틴", orig: "[두뇌로수학] ✅ 양(量)을 이기는 구조의 힘 ▶️ 세븐합 원리", desc: "손으로 세로셈만 반복하면 머리는 멈춥니다. ①세로셈 ②자릿값 더하기 ③몇십+몇십 ④순서바꾸기 ⑤5기준수 ⑥10기준수 ⑦동수덧셈의 7가지 구조로 수 감각을 깨웁니다.", tags: ["세븐합", "덧셈원리", "5기준수", "10기준수", "동수덧셈", "초1", "초2"] },
       { id: "ftVYOyppOSA", cat: "덧셈·뺄셈·암산", key: "받아내림 두자리 뺄셈", title: "93 - 67, 무작정 '빌려온다'고 가르치면 연산이 망가집니다", orig: "[두뇌로수학] 받아내림 있는 두자리수 뺄셈", desc: "십모형 1개를 낮게 10개로 바꾸는 수모형 조작을 통해 10-7=3, 3+3=6의 자릿값 재구성을 이해시키고 세로셈에서 가로셈 암산까지 연결합니다.", tags: ["받아내림", "두자리뺄셈", "수모형", "자릿값", "가로셈암산", "초1", "초2"] },
@@ -191,6 +196,84 @@
       { id: "uQLke2EQugQ", cat: "6·7세 유아·교육철학", key: "도형·퍼즐·연산 통합과 교사 직강", title: "연산 학원 따로, 사고력 따로? '도형·퍼즐·연산'을 하나로 묶어야 터집니다", orig: "[생각의 고수] 도형, 퍼즐, 연산...지금 따로 하고 있나요?", desc: "소마큐브·펜토미노 같은 영재 교구와 교과 도형, 연산 구조를 하나로 엮어 올림피아드·영재원까지 대비합니다. 강남·송파 교사 교육을 직접 진행하는 지사장님의 발문법이 핵심입니다.", tags: ["통합사고력", "소마큐브", "펜토미노", "영재원대비", "송파강동학원"] }
     ];
 
+    let videos = FALLBACK_VIDEOS;
+
+    // CSV 한 덩어리를 행 배열로 (따옴표 안의 쉼표·줄바꿈 처리)
+    function parseCSV(text) {
+      const rows = []; let row = []; let cell = ""; let q = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (q) {
+          if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+          else cell += c;
+        } else if (c === '"') q = true;
+        else if (c === ",") { row.push(cell); cell = ""; }
+        else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+        else if (c !== "\r") cell += c;
+      }
+      if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+      return rows;
+    }
+
+    const oneLine = t => String(t || "").replace(/\s*[\r\n]+\s*/g, " ").replace(/\\/g, "").trim();
+
+    function rowsToVideos(rows) {
+      const head = rows[0].map(h => h.trim());
+      const at = name => head.indexOf(name);
+      const C = { show: at("노출"), id: at("영상 ID"), title: at("제목"), cat: at("카테고리"), key: at("핵심 키워드"),
+                  orig: at("원제목"), desc: at("설명"), tags: at("태그"), date: at("올린 날짜") };
+      if (C.show < 0 || C.id < 0 || C.title < 0) throw new Error("시트 1행 열 이름이 다릅니다");
+      const get = (r, i) => (i >= 0 && r[i] != null ? r[i] : "");
+      return rows.slice(1)
+        .filter(r => get(r, C.show).trim().toUpperCase() === "Y" && /^[\w-]{11}$/.test(get(r, C.id).trim()))
+        .map(r => ({
+          id: get(r, C.id).trim(),
+          cat: oneLine(get(r, C.cat)),
+          key: oneLine(get(r, C.key)),
+          title: oneLine(get(r, C.title)),
+          orig: oneLine(get(r, C.orig)),
+          desc: oneLine(get(r, C.desc)),
+          tags: oneLine(get(r, C.tags)).split(/[\s,]+/).map(t => t.replace(/^#/, "")).filter(Boolean),
+          date: get(r, C.date).trim()
+        }));
+    }
+
+    async function loadVideoSheet() {
+      if (!SHEET_URL || SHEET_URL.startsWith("__")) return;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      try {
+        const res = await fetch(SHEET_URL, { signal: ctrl.signal, cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const list = rowsToVideos(parseCSV(await res.text()));
+        if (list.length) { videos = list; updateAllCount(); render(); }
+      } catch (e) {
+        console.warn("[영상 시트] 불러오기 실패, 기본 목록 사용:", e);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    const escHtml = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const jsArg = t => escHtml(String(t).replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+
+    // 썸네일이 안 열리면 다른 주소로 한 번 더 시도, 그래도 안 되면 회색 칸만 남김
+    function thumbFail(img) {
+      if (!img.dataset.retry) { img.dataset.retry = "1"; img.src = `https://img.youtube.com/vi/${img.dataset.id}/mqdefault.jpg`; }
+      else img.style.display = "none";
+    }
+
+    function isNew(v) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date || "")) return false;
+      const days = (Date.now() - new Date(v.date + "T00:00:00+09:00").getTime()) / 86400000;
+      return days >= 0 && days <= NEW_DAYS;
+    }
+
+    function updateAllCount() {
+      const b = document.getElementById("allCatBtn");
+      if (b) b.textContent = `전체 (${videos.length})`;
+    }
+
     let currentCat = "전체";
     let searchQuery = "";
 
@@ -222,8 +305,8 @@
       listEl.innerHTML = filtered.map(v => `
         <article class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex gap-3.5 items-start hover:border-indigo-400 transition">
           <!-- 썸네일 -->
-          <div onclick="openModal('${v.id}', '${v.title.replace(/'/g, "\\'")}')" class="relative w-24 h-36 sm:w-28 sm:h-40 shrink-0 rounded-xl overflow-hidden bg-slate-200 cursor-pointer group shadow-inner">
-            <img src="https://i.ytimg.com/vi/${v.id}/hqdefault.jpg" alt="${v.title}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+          <div onclick="openModal('${v.id}', '${jsArg(v.title)}')" class="relative w-24 h-36 sm:w-28 sm:h-40 shrink-0 rounded-xl overflow-hidden bg-slate-200 cursor-pointer group shadow-inner">
+            <img src="https://i.ytimg.com/vi/${v.id}/hqdefault.jpg" data-id="${v.id}" alt="" loading="lazy" onerror="thumbFail(this)" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
             <div class="absolute inset-0 bg-black/30 flex items-center justify-center">
               <div class="w-9 h-9 rounded-full bg-red-600 text-white flex items-center justify-center text-xs pl-0.5 shadow-lg">▶</div>
             </div>
@@ -232,11 +315,12 @@
           <!-- 본문 정보 -->
           <div class="flex-1 min-w-0">
             <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
-              <span class="text-[11px] font-extrabold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">${v.cat}</span>
-              <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900">🔑 ${v.key}</span>
+              ${isNew(v) ? `<span class="text-[11px] font-extrabold px-2 py-0.5 rounded bg-red-600 text-white">NEW</span>` : ""}
+              ${v.cat ? `<span class="text-[11px] font-extrabold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">${v.cat}</span>` : ""}
+              ${v.key ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900">🔑 ${v.key}</span>` : ""}
             </div>
             
-            <h2 onclick="openModal('${v.id}', '${v.title.replace(/'/g, "\\'")}')" class="text-sm sm:text-base font-extrabold text-slate-900 leading-snug cursor-pointer hover:text-indigo-700 mb-1.5">
+            <h2 onclick="openModal('${v.id}', '${jsArg(v.title)}')" class="text-sm sm:text-base font-extrabold text-slate-900 leading-snug cursor-pointer hover:text-indigo-700 mb-1.5">
               ${v.title}
             </h2>
             
@@ -244,15 +328,15 @@
             
             <!-- 해시태그 -->
             <div class="flex flex-wrap gap-1 mb-3">
-              ${v.tags.map(t => `<span onclick="setTagSearch('${t}')" class="text-[11px] font-medium bg-slate-100 hover:bg-indigo-100 text-slate-600 hover:text-indigo-800 px-2 py-0.5 rounded cursor-pointer transition">#${t}</span>`).join("")}
+              ${v.tags.map(t => `<span onclick="setTagSearch('${jsArg(t)}')" class="text-[11px] font-medium bg-slate-100 hover:bg-indigo-100 text-slate-600 hover:text-indigo-800 px-2 py-0.5 rounded cursor-pointer transition">#${t}</span>`).join("")}
             </div>
 
             <!-- 하단 액션 버튼 -->
             <div class="flex gap-1.5">
-              <button onclick="openModal('${v.id}', '${v.title.replace(/'/g, "\\'")}')" class="py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold text-center shadow-sm">
+              <button onclick="openModal('${v.id}', '${jsArg(v.title)}')" class="py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold text-center shadow-sm">
                 ▶ 바로 재생
               </button>
-              <button onclick="copyShare('${v.id}', '${v.title.replace(/'/g, "\\'")}', '${v.desc.replace(/'/g, "\\'")}')" class="flex-1 py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-indigo-950 text-xs font-extrabold text-center shadow-sm">
+              <button onclick="copyShare('${v.id}', '${jsArg(v.title)}', '${jsArg(v.desc)}')" class="flex-1 py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-indigo-950 text-xs font-extrabold text-center shadow-sm">
                 💬 상담멘트+링크 복사
               </button>
               <button onclick="copyUrlOnly('${v.id}')" class="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">
@@ -338,7 +422,9 @@
       });
     });
 
+    updateAllCount();
     render();
+    loadVideoSheet();
   </script>
 </body>
 </html>
